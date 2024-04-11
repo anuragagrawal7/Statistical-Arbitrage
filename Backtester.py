@@ -126,18 +126,18 @@ class Backtester():
         
         account['Returns'] = account['Equity'].pct_change()
 
-        stra_cagr = (equity[-1]/equity[0])**(365.25/((datetime[-1]-datetime[0]).days)) -1
+        stra_cagr = round(100*((equity[-1]/equity[0])**(365.25/((datetime[-1]-datetime[0]).days)) -1), 2)
 
         Roll_Max = account['Equity'].cummax()
         Daily_Drawdown = account['Equity']/Roll_Max -1
         Max_Daily_Drawdown = Daily_Drawdown.cummin()
-        stra_mdd = round(Max_Daily_Drawdown.iloc[-1],3)
+        stra_mdd = round(100*Max_Daily_Drawdown.iloc[-1], 2)
 
-        strategy_sharp = ((account['Returns'].mean())*252 - 0.05)/(account['Returns'].std()*np.sqrt(252))
+        strategy_sharp = round(((account['Returns'].mean())*252 - 0.05)/(account['Returns'].std()*np.sqrt(252)), 2)
 
-        strategy_sortino = ((account['Returns'].mean())*252 - 0.05)/((account['Returns']<1).std()*np.sqrt(252))
+        strategy_sortino = round((account['Returns'].mean()*252 - 0.05)/((account['Returns'][account['Returns']<0]).std()*np.sqrt(252)), 2)
         
-        strategy_calmar = round(-1*stra_cagr/stra_mdd, 1)
+        strategy_calmar = round(-1*stra_cagr/stra_mdd, 2)
 
         #winners = list(filter(lambda x:x>0, pnl))
         #avg_win = sum(winners)*100/len(winners)
