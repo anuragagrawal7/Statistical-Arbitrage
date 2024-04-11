@@ -13,23 +13,23 @@ class Backtester():
         self.prices = prices
         self.margins = margins
     
-    def execute_trades(self, i, capital, signal, position, qty, equity, date, trade_type, entry, exit, entry_price, exit_price):
+    def execute_trades(self,datetime, i, capital, signal, position, qty, equity, trade_type, entry, exit, entry_price, exit_price):
         
         if i== 0:
             equity.append(capital)
-            date.append(self.dfn.index[i])
+            datetime.append(self.dfn.index[i])
         
         # If there is no position, carry the existing equity
         if position == 0 and i > 0:
-            date.append(self.dfn.index[i])
+            datetime.append(self.dfn.index[i])
             equity.append(equity[-1])
 
         # If there is an open position carry the position and the entry price
 
         if position != 0:
-            todays_pnl = qty[-1]*position*(self.prices.iloc[-1] - self.prices.iloc[-2])
+            todays_pnl = qty[-1]*position*(self.prices.iloc[i] - self.prices.iloc[i-1])
             eq = equity[-1] + todays_pnl
-            date.append(self.dfn.index[i])
+            datetime.append(self.dfn.index[i])
             equity.append(eq)
 
         # Entry long
@@ -37,10 +37,11 @@ class Backtester():
         if signal == 'Long' and position == 0:
             position = 1
             trade_value = equity[-1]
-            margin = self.margins.iloc[-1]
-            qty.append(trade_value / margin)
+            margin = self.margins.iloc[i]
+            qty.append(round(trade_value / margin, 0))
+            #print(i, self.dfn.index[i], self.prices.iloc[i])
             entry.append(self.dfn.index[i])
-            entry_price.append(self.prices.iloc[-1])
+            entry_price.append(self.prices.iloc[i])
             trade_type.append('Long')
 
         # Check take profit and stop loss for long position  
@@ -49,28 +50,33 @@ class Backtester():
 
             position = 0
             exit.append(self.dfn.index[i])
-            exit_price.append(self.prices.iloc[-1])
+            exit_price.append(self.prices.iloc[i])
             
          # Entry Short
 
         if signal == 'Short' and position == 0:
             position = -1
             trade_value = equity[-1]
-            margin = self.margins.iloc[-1]
-            qty.append(trade_value / margin)
+            margin = self.margins.iloc[i]
+            qty.append(round(trade_value / margin, 0))
             entry.append(self.dfn.index[i])
-            entry_price.append(self.prices.iloc[-1])
+            entry_price.append(self.prices.iloc[i])
             trade_type.append('Short')
 
-        # Check take profit and stop loss for long position  
+        # Check take profit and stop loss for short position  
 
-        elif position == -1 and (signal == 'Short Square Off' or i == len(self.dfn) -1):
+        elif position == -1 and signal == 'Short Square Off':
 
             position = 0
             exit.append(self.dfn.index[i])
-            exit_price.append(self.prices.iloc[-1])
+            exit_price.append(self.prices.iloc[i])
             
-        return position, qty, equity, date, trade_type, entry, exit, entry_price, exit_price    
+        if i == len(self.dfn) -1 and position !=0:
+            position = 0
+            exit.append(self.dfn.index[i])
+            exit_price.append(self.prices.iloc[i])
+            
+        return position, qty, equity, datetime, trade_type, entry, exit, entry_price, exit_price    
     
     def create_trade_log(self, qty, trade_type, entry, exit, entry_price, exit_price):
         trade_log = pd.DataFrame()
@@ -112,15 +118,15 @@ class Backtester():
         
         return accuracy, long_accuracy, short_accuracy
     
-    def calculate_backtest_results(self, date, equity):
+    def calculate_backtest_results(self, datetime, equity):
         
         account = pd.DataFrame()
-        account['Date'] = date
+        account['Datetime'] = datetime
         account['Equity'] = equity
         
         account['Returns'] = account['Equity'].pct_change()
 
-        stra_cagr = round(((account['Equity'].iloc[-1]/account['Equity'].iloc[0])**(252/(len(account))) - 1), 3)
+        stra_cagr = (equity[-1]/equity[0])**(365.25/((datetime[-1]-datetime[0]).days)) -1
 
         Roll_Max = account['Equity'].cummax()
         Daily_Drawdown = account['Equity']/Roll_Max -1
@@ -141,7 +147,7 @@ class Backtester():
         backtest = [stra_cagr, stra_mdd, strategy_sharp, strategy_sortino, strategy_calmar]
 
 
-        account.plot(x='Date', y=['Equity'], figsize=(20,12))
+        account.plot(x='Datetime', y=['Equity'], figsize=(20,12))
 
         results = pd.DataFrame(backtest, row, headers)
         return account, results

@@ -29,29 +29,35 @@ class StatisticalArbitrage():
     
         return (self.inst1_n.iloc[-1]/leverage1) + (hedge_ratio*self.inst2_n.iloc[-1]/leverage2)
     
-    def bollinger_bands_on_spread(self, sprd, timeperiod, nbdevup, nbdevdn):
+    def bollinger_bands_on_spread(self, sprd, timeperiod, nbdevup, nbdevdn, long_target, short_target):
         bb = pd.DataFrame()
         bb['Spread'] = sprd['Spread'].iloc[-1-timeperiod:]
         bb['Margin'] = sprd['Margin'].iloc[-1-timeperiod:]
         bb['upper_band'], bb['middle_band'], bb['lower_band'] = ta.BBANDS(bb['Spread'], timeperiod =timeperiod, nbdevup=nbdevup, nbdevdn=nbdevdn)
+        bb['STDEV'] = bb['Spread'].rolling(window=timeperiod).std()
+        bb['long_target_band'] = bb['middle_band'] + long_target*bb['STDEV']
+        bb['short_target_band'] = bb['middle_band'] - short_target*bb['STDEV']
         bb.dropna(inplace=True)
         return bb
     
     def bollinger_signals(self, bb):
+        
+        signal = 'No Signal'
+        
         # Long
         if bb['Spread'].iloc[-1] <= bb['lower_band'].iloc[-1]:
             signal = 'Long'
 
         # Short
-        if bb['Spread'].iloc[-1] >= bb['upper_band'].iloc[-1]:
+        elif bb['Spread'].iloc[-1] >= bb['upper_band'].iloc[-1]:
             signal = 'Short'
 
         # Short Square Off
-        if bb['Spread'].iloc[-1] <= bb['middle_band'].iloc[-1] and bb['Spread'].iloc[-1] > bb['lower_band'].iloc[-1]:
+        elif bb['Spread'].iloc[-1] <= bb['short_target_band'].iloc[-1] and bb['Spread'].iloc[-1] > bb['lower_band'].iloc[-1]:
             signal = 'Short Square Off'
 
         # Long Square Off
-        if bb['Spread'].iloc[-1] >= bb['middle_band'].iloc[-1] and bb['Spread'].iloc[-1] < bb['upper_band'].iloc[-1]:
+        elif bb['Spread'].iloc[-1] >= bb['long_target_band'].iloc[-1] and bb['Spread'].iloc[-1] < bb['upper_band'].iloc[-1]:
             signal = 'Long Square Off'
             
         return signal
